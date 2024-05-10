@@ -6,33 +6,58 @@ from ftplib import FTP
 from dotenv import load_dotenv
 import traceback
 import tempfile
+import logging
 
 # Load environment variables from .env file
 load_dotenv()
 
+# Configure logging
+logging.basicConfig(filename='email_verification.log', level=logging.INFO)
+
 # Function to upload file via FTP
 def upload_file_to_ftp(file_data):
-    ftp_username = os.getenv('FTP_USERNAME')
-    ftp_password = os.getenv('FTP_PASSWORD')
-    ftp_hostname = '4sgm.us'
-    ftp_path = '/new/uploads/'
+    """
+    Function to upload a file to an FTP server.
 
-    # Connect to FTP server
-    with FTP(ftp_hostname) as ftp:
-        ftp.login(user=ftp_username, passwd=ftp_password)
+    Parameters:
+    file_data (str): The data of the file to be uploaded.
 
-        # Upload file
-        with tempfile.NamedTemporaryFile(delete=False) as temp_file:
-            temp_file.write(file_data.encode())
-            temp_file.seek(0)
-            ftp.storbinary(f'STOR {ftp_path}/uploaded_file.csv', temp_file)
+    Returns:
+    str: The URL of the uploaded file.
+    """
+    try:
+        # Retrieve FTP credentials from environment variables
+        ftp_username = os.getenv('FTP_USERNAME')
+        ftp_password = os.getenv('FTP_PASSWORD')
+        ftp_hostname = '4sgm.us'
+        ftp_path = '/new/uploads/'
 
-        # Construct file URL
-        file_url = f"https://{ftp_hostname}{ftp_path}uploaded_file.csv"
+        # Connect to FTP server
+        with FTP(ftp_hostname) as ftp:
+            ftp.login(user=ftp_username, passwd=ftp_password)
 
-    return file_url
+            # Upload file
+            with tempfile.NamedTemporaryFile(delete=False) as temp_file:
+                temp_file.write(file_data.encode())
+                temp_file.seek(0)
+                ftp.storbinary(f'STOR {ftp_path}/uploaded_file.csv', temp_file)
+
+            # Construct file URL
+            file_url = f"https://{ftp_hostname}{ftp_path}uploaded_file.csv"
+
+        return file_url
+
+    except Exception as e:
+        logging.error(f"Error occurred while uploading file to FTP: {str(e)}")
+        raise
 
 def main():
+    """
+    Main function to upload a CSV file to an FTP server and validate the email list using debounce.io API.
+
+    Returns:
+    None
+    """
     try:
         # Check if CSV filename argument is provided
         if len(sys.argv) != 2:
@@ -44,7 +69,7 @@ def main():
 
         # Check if CSV file exists
         if not os.path.isfile(csv_filename):
-            print("Error: CSV file does not exist.")
+            logging.error("CSV file does not exist.")
             sys.exit(1)
 
         # Read CSV data
@@ -53,6 +78,7 @@ def main():
 
         # Upload CSV to FTP server
         file_url = upload_file_to_ftp(csv_data)
+        logging.info("CSV file uploaded to FTP server.")
 
         # Validate the email list using debounce.io API
         debounce_url = "https://bulk.debounce.io/v1/upload/"
@@ -72,13 +98,13 @@ def main():
             if list_id:
                 print("List ID:", list_id)
             else:
-                print("Error: List ID not found in response.")
+                logging.error("List ID not found in response.")
         else:
-            print("Error:", response.text)
+            logging.error(f"Error occurred during validation: {response.text}")
 
     except Exception as e:
-        print("An error occurred:")
-        print(traceback.format_exc())
+        logging.error(f"An error occurred: {str(e)}")
+        logging.error(traceback.format_exc())
 
 if __name__ == "__main__":
     main()
