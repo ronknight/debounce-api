@@ -1,0 +1,62 @@
+sequence-diagram
+
+title Email List Validation and Processing
+
+// Actors
+User [icon: user, color: blue]
+Client [icon: monitor]
+FTP Server [icon: server, color: orange]
+Debounce API [icon: cloud, color: green]
+
+// User initiates the process
+User > Client: Run create_batch.py <csv_filename>
+activate Client
+
+// Client reads CSV file
+Client > Client: Read CSV file
+
+// Client uploads CSV to FTP Server
+Client > FTP Server: Upload CSV file
+activate FTP Server
+FTP Server --> Client: Upload successful
+deactivate FTP Server
+
+// Client sends request to Debounce API
+Client > Debounce API: Validate email list
+activate Debounce API
+Debounce API --> Client: Return list ID
+deactivate Debounce API
+
+// Client prints list ID
+Client > User: Print list ID
+deactivate Client
+
+// User initiates status check
+User > Client: Run get_status.py <list_id>
+activate Client
+
+// Loop until status is completed
+loop [label: until status is completed] {
+    // Client checks status with Debounce API
+    Client > Debounce API: Check status
+    activate Debounce API
+    alt [label: status completed, color: green] {
+        Debounce API --> Client: Status: completed, Download link
+    }
+    else [label: status not completed] {
+        Debounce API --> Client: Status: not completed
+        Client > Client: Wait for 1 minute
+    }
+    deactivate Debounce API
+}
+
+// Client downloads the processed file
+Client > Debounce API: Download processed file
+activate Debounce API
+Debounce API --> Client: Processed file
+deactivate Debounce API
+
+// Client prints status and download link
+Client > User: Print status and download link
+deactivate Client
+
